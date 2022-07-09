@@ -8,6 +8,11 @@ use ApiPlatform\Core\Bridge\Symfony\Bundle\Test\ApiTestCase;
 use ApiPlatform\Core\Bridge\Symfony\Bundle\Test\Client;
 use App\Controller\ProfileController;
 use App\Tests\Api\RefreshDatabaseTrait;
+use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 /**
  * @see ProfileController
@@ -24,6 +29,11 @@ final class ProfileControllerTest extends ApiTestCase
     }
 
     /**
+     * @throws ServerExceptionInterface
+     * @throws RedirectionExceptionInterface
+     * @throws DecodingExceptionInterface
+     * @throws ClientExceptionInterface
+     * @throws TransportExceptionInterface
      * @see ProfileController::__invoke()
      */
     public function testProfile(): void
@@ -41,9 +51,16 @@ final class ProfileControllerTest extends ApiTestCase
         ]);
         self::assertResponseIsSuccessful();
         self::assertResponseHeaderSame('content-type', 'application/json');
-        self::assertJsonContains([
-            'email' => 'admin@example.com',
-            'roles' => ['ROLE_ADMIN', 'ROLE_USER'],
-        ]);
+        try {
+            self::assertJsonContains([
+                'email' => 'admin@example.com',
+                'roles' => ['ROLE_ADMIN', 'ROLE_USER'],
+            ]);
+        } catch (ClientExceptionInterface
+        |DecodingExceptionInterface
+        |RedirectionExceptionInterface
+        |ServerExceptionInterface
+        |TransportExceptionInterface $e) {
+        }
     }
 }
