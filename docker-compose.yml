@@ -103,7 +103,16 @@ services:
       - target: 5432
         published: 5432
         protocol: tcp
-
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${POSTGRES_USER:-symfony@google.com}
+      PGADMIN_DEFAULT_PASSWORD: ${POSTGRES_PASSWORD:-ChangeMe}
+    ports:
+      - "5050:80"
+    depends_on:
+      - database
 volumes:
   php_socket:
   db_data:
