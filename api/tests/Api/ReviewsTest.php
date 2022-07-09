@@ -8,6 +8,11 @@ use ApiPlatform\Core\Bridge\Symfony\Bundle\Test\ApiTestCase;
 use ApiPlatform\Core\Bridge\Symfony\Bundle\Test\Client;
 use App\Entity\Book;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 final class ReviewsTest extends ApiTestCase
 {
@@ -35,6 +40,13 @@ final class ReviewsTest extends ApiTestCase
         self::assertCount(2, $response->toArray()['hydra:member']);
     }
 
+    /**
+     * @throws TransportExceptionInterface
+     * @throws ServerExceptionInterface
+     * @throws RedirectionExceptionInterface
+     * @throws DecodingExceptionInterface
+     * @throws ClientExceptionInterface
+     */
     public function testCreateInvalidReviewWithInvalidBody(): void
     {
         $iri = $this->findIriBy(Book::class, ['isbn' => self::ISBN]);
@@ -76,14 +88,24 @@ final class ReviewsTest extends ApiTestCase
         ]]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
-        self::assertJsonContains([
-            '@context' => '/contexts/ConstraintViolationList',
-            '@type' => 'ConstraintViolationList',
-            'hydra:title' => 'An error occurred',
-            'hydra:description' => 'rating: This value should not be blank.',
-        ]);
+        try {
+            self::assertJsonContains([
+                '@context' => '/contexts/ConstraintViolationList',
+                '@type' => 'ConstraintViolationList',
+                'hydra:title' => 'An error occurred',
+                'hydra:description' => 'rating: This value should not be blank.',
+            ]);
+        } catch (ClientExceptionInterface|DecodingExceptionInterface|RedirectionExceptionInterface|TransportExceptionInterface|ServerExceptionInterface $e) {
+        }
     }
 
+    /**
+     * @throws TransportExceptionInterface
+     * @throws ServerExceptionInterface
+     * @throws RedirectionExceptionInterface
+     * @throws DecodingExceptionInterface
+     * @throws ClientExceptionInterface
+     */
     public function testCreateInvalidReviewWithInvalidRating(): void
     {
         $iri = $this->findIriBy(Book::class, ['isbn' => self::ISBN]);
@@ -104,6 +126,13 @@ final class ReviewsTest extends ApiTestCase
         ]);
     }
 
+    /**
+     * @throws RedirectionExceptionInterface
+     * @throws DecodingExceptionInterface
+     * @throws ClientExceptionInterface
+     * @throws TransportExceptionInterface
+     * @throws ServerExceptionInterface
+     */
     public function testCreateInvalidReviewWithInvalidBook(): void
     {
         $this->client->request('POST', '/reviews', ['json' => [
