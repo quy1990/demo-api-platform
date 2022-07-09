@@ -9,6 +9,11 @@ use ApiPlatform\Core\Bridge\Symfony\Bundle\Test\Client;
 use App\DataProvider\TopBookCollectionDataProvider;
 use App\Entity\TopBook;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 /**
  * These tests are read only, thus there is not need to use the RefreshDatabaseTrait
@@ -25,6 +30,11 @@ class TopBooksTest extends ApiTestCase
     }
 
     /**
+     * @throws ServerExceptionInterface
+     * @throws RedirectionExceptionInterface
+     * @throws DecodingExceptionInterface
+     * @throws ClientExceptionInterface
+     * @throws TransportExceptionInterface
      * @see TopBookCollectionDataProvider::getCollection()
      */
     public function testGetCollection(): void
@@ -32,19 +42,26 @@ class TopBooksTest extends ApiTestCase
         $response = $this->client->request('GET', '/top_books');
         self::assertResponseIsSuccessful();
         self::assertResponseHeaderSame('content-type', 'application/ld+json; charset=utf-8');
-        self::assertJsonContains([
-            '@context' => '/contexts/TopBook',
-            '@id' => '/top_books',
-            '@type' => 'hydra:Collection',
-            'hydra:totalItems' => 100,
-            'hydra:view' => [
-                '@id' => '/top_books?page=1',
-                '@type' => 'hydra:PartialCollectionView',
-                'hydra:first' => '/top_books?page=1',
-                'hydra:last' => '/top_books?page=10',
-                'hydra:next' => '/top_books?page=2',
-            ],
-        ]);
+        try {
+            self::assertJsonContains([
+                '@context' => '/contexts/TopBook',
+                '@id' => '/top_books',
+                '@type' => 'hydra:Collection',
+                'hydra:totalItems' => 100,
+                'hydra:view' => [
+                    '@id' => '/top_books?page=1',
+                    '@type' => 'hydra:PartialCollectionView',
+                    'hydra:first' => '/top_books?page=1',
+                    'hydra:last' => '/top_books?page=10',
+                    'hydra:next' => '/top_books?page=2',
+                ],
+            ]);
+        } catch (ClientExceptionInterface
+        |DecodingExceptionInterface
+        |RedirectionExceptionInterface
+        |ServerExceptionInterface
+        |TransportExceptionInterface $e) {
+        }
 
         // 10 is the "pagination_items_per_page" parameters configured in the TopBook ApiResource annotation.
         self::assertCount(self::PAGINATION_ITEMS_PER_PAGE, $response->toArray()['hydra:member']);
@@ -62,6 +79,10 @@ class TopBooksTest extends ApiTestCase
     /**
      * Nominal case.
      *
+     * @throws ServerExceptionInterface
+     * @throws RedirectionExceptionInterface
+     * @throws ClientExceptionInterface
+     * @throws TransportExceptionInterface
      * @see TopBookItemDataProvider::getItem()
      */
     public function testGetItem(): void
@@ -87,6 +108,7 @@ class TopBooksTest extends ApiTestCase
     /**
      * Error case n°1: invalid identifier.
      *
+     * @throws TransportExceptionInterface
      * @see TopBookItemDataProvider::checkId()
      */
     public function testGetItemErrorIdIsNotAnInteger(): void
@@ -99,6 +121,7 @@ class TopBooksTest extends ApiTestCase
     /**
      * Error case n°2: out of range identifier.
      *
+     * @throws TransportExceptionInterface
      * @see TopBookItemDataProvider::checkId()
      */
     public function testGetItemErrorIdIsOutOfRange(): void

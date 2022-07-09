@@ -8,7 +8,15 @@ use ApiPlatform\Core\Bridge\Symfony\Bundle\Test\ApiTestCase;
 use ApiPlatform\Core\Bridge\Symfony\Bundle\Test\Client;
 use ApiPlatform\Core\Bridge\Symfony\Routing\Router;
 use App\Entity\Book;
+use Exception;
+use Psr\Container\ContainerExceptionInterface;
+use Psr\Container\NotFoundExceptionInterface;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\Service\ServiceProviderInterface;
 
 class BooksTest extends ApiTestCase
@@ -24,6 +32,10 @@ class BooksTest extends ApiTestCase
     public const COUNT_ARCHIVED = 1;
     public const COUNT = self::COUNT_WITHOUT_ARCHIVED + self::COUNT_ARCHIVED;
 
+    /**
+     * @return void
+     * @throws Exception
+     */
     protected function setup(): void
     {
         $this->client = static::createClient();
@@ -34,6 +46,13 @@ class BooksTest extends ApiTestCase
         $this->router = $router;
     }
 
+    /**
+     * @throws RedirectionExceptionInterface
+     * @throws DecodingExceptionInterface
+     * @throws ClientExceptionInterface
+     * @throws TransportExceptionInterface
+     * @throws ServerExceptionInterface
+     */
     public function testGetCollection(): void
     {
         // The client implements Symfony HttpClient's `HttpClientInterface`, and the response `ResponseInterface`
@@ -57,21 +76,30 @@ class BooksTest extends ApiTestCase
         // It works because the API returns test fixtures loaded by Alice
         self::assertCount(self::ITEMS_PER_PAGE, $response->toArray()['hydra:member']);
 
-        static::assertMatchesJsonSchema(file_get_contents(__DIR__.'/schemas/books.json'));
+        static::assertMatchesJsonSchema(file_get_contents(__DIR__ . '/schemas/books.json'));
         // Checks that the returned JSON is validated by the JSON Schema generated for this API Resource by API Platform
         // This JSON Schema is also used in the generated OpenAPI spec
         self::assertMatchesResourceCollectionJsonSchema(Book::class);
     }
 
+    /**
+     * @throws RedirectionExceptionInterface
+     * @throws DecodingExceptionInterface
+     * @throws ClientExceptionInterface
+     * @throws TransportExceptionInterface
+     * @throws ServerExceptionInterface
+     */
     public function testCreateBook(): void
     {
-        $response = $this->client->request('POST', '/books', ['json' => [
-            'isbn' => '0099740915',
-            'title' => 'The Handmaid\'s Tale',
-            'description' => 'Brilliantly conceived and executed, this powerful evocation of twenty-first century America gives full rein to Margaret Atwood\'s devastating irony, wit and astute perception.',
-            'author' => 'Margaret Atwood',
-            'publicationDate' => '1985-07-31T00:00:00+00:00',
-        ]]);
+        $response = $this->client->request('POST', '/books', [
+            'json' => [
+                'isbn' => '0099740915',
+                'title' => 'The Handmaid\'s Tale',
+                'description' => 'Brilliantly conceived and executed, this powerful evocation of twenty-first century America gives full rein to Margaret Atwood\'s devastating irony, wit and astute perception.',
+                'author' => 'Margaret Atwood',
+                'publicationDate' => '1985-07-31T00:00:00+00:00',
+            ]
+        ]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_CREATED);
         self::assertResponseHeaderSame('content-type', 'application/ld+json; charset=utf-8');
@@ -85,15 +113,27 @@ class BooksTest extends ApiTestCase
             'publicationDate' => '1985-07-31T00:00:00+00:00',
             'reviews' => [],
         ]);
-        self::assertMatchesRegularExpression('~^/books/[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}$~', $response->toArray()['@id']);
+        self::assertMatchesRegularExpression(
+            '~^/books/[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}$~',
+            $response->toArray()['@id']
+        );
         self::assertMatchesResourceItemJsonSchema(Book::class);
     }
 
+    /**
+     * @throws ServerExceptionInterface
+     * @throws RedirectionExceptionInterface
+     * @throws DecodingExceptionInterface
+     * @throws ClientExceptionInterface
+     * @throws TransportExceptionInterface
+     */
     public function testCreateInvalidBook(): void
     {
-        $this->client->request('POST', '/books', ['json' => [
-            'isbn' => 'invalid',
-        ]]);
+        $this->client->request('POST', '/books', [
+            'json' => [
+                'isbn' => 'invalid',
+            ]
+        ]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
         self::assertResponseHeaderSame('content-type', 'application/ld+json; charset=utf-8');
@@ -110,12 +150,21 @@ publicationDate: This value should not be null.',
         ]);
     }
 
+    /**
+     * @throws TransportExceptionInterface
+     * @throws ServerExceptionInterface
+     * @throws RedirectionExceptionInterface
+     * @throws DecodingExceptionInterface
+     * @throws ClientExceptionInterface
+     */
     public function testUpdateBook(): void
     {
-        $iri = (string) $this->findIriBy(Book::class, ['isbn' => self::ISBN]);
-        $this->client->request('PUT', $iri, ['json' => [
-            'title' => 'updated title',
-        ]]);
+        $iri = (string)$this->findIriBy(Book::class, ['isbn' => self::ISBN]);
+        $this->client->request('PUT', $iri, [
+            'json' => [
+                'title' => 'updated title',
+            ]
+        ]);
 
         self::assertResponseIsSuccessful();
         self::assertJsonContains([
@@ -125,20 +174,28 @@ publicationDate: This value should not be null.',
         ]);
     }
 
+    /**
+     * @throws TransportExceptionInterface
+     */
     public function testDeleteBook(): void
     {
         $token = $this->login();
         $client = static::createClient();
-        $iri = (string) $this->findIriBy(Book::class, ['isbn' => self::ISBN]);
+        $iri = (string)$this->findIriBy(Book::class, ['isbn' => self::ISBN]);
         $client->request('DELETE', $iri, ['auth_bearer' => $token]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_NO_CONTENT);
         self::assertNull(
-            // Through the container, you can access all your services from the tests, including the ORM, the mailer, remote API clients...
+        // Through the container, you can access all your services from the tests, including the ORM, the mailer, remote API clients...
             static::getContainer()->get('doctrine')->getRepository(Book::class)->findOneBy(['isbn' => self::ISBN])
         );
     }
 
+    /**
+     * @throws ContainerExceptionInterface
+     * @throws TransportExceptionInterface
+     * @throws NotFoundExceptionInterface
+     */
     public function testGenerateCover(): void
     {
         $book = static::getContainer()->get('doctrine')->getRepository(Book::class)->findOneBy(['isbn' => self::ISBN]);
@@ -146,9 +203,13 @@ publicationDate: This value should not be null.',
         if (!$book instanceof Book) {
             throw new \LogicException('Book not found.');
         }
-        $this->client->request('PUT', $this->router->generate('api_books_generate_cover_item', ['id' => $book->getId()]), [
-            'json' => [],
-        ]);
+        $this->client->request(
+            'PUT',
+            $this->router->generate('api_books_generate_cover_item', ['id' => $book->getId()]),
+            [
+                'json' => [],
+            ]
+        );
 
         $messengerReceiverLocator = static::getContainer()->get('messenger.receiver_locator');
         if (!$messengerReceiverLocator instanceof ServiceProviderInterface) {
@@ -165,32 +226,41 @@ publicationDate: This value should not be null.',
 
     /**
      * The filter is not applied by default on the Book collections.
+     * @throws TransportExceptionInterface
      */
     public function testArchivedFilterDefault(): void
     {
         $this->client->request('GET', '/books');
         self::assertResponseIsSuccessful();
-        self::assertJsonContains([
-            '@id' => '/books',
-            '@type' => 'hydra:Collection',
-            'hydra:totalItems' => self::COUNT,
-        ]);
+        try {
+            self::assertJsonContains([
+                '@id' => '/books',
+                '@type' => 'hydra:Collection',
+                'hydra:totalItems' => self::COUNT,
+            ]);
+        } catch (ClientExceptionInterface
+        |DecodingExceptionInterface
+        |RedirectionExceptionInterface
+        |TransportExceptionInterface
+        |ServerExceptionInterface $e) {
+
+        }
     }
 
     public function archivedParameterProvider(): \iterator
     {
         // Only archived are returned
-        yield ['true',  self::COUNT_ARCHIVED];
+        yield ['true', self::COUNT_ARCHIVED];
         yield ['1', self::COUNT_ARCHIVED];
 
         // Incorrect value, no filter applied
-        yield ['',  self::COUNT];
-        yield ['true[]',  self::COUNT];
-        yield ['foobar',  self::COUNT];
+        yield ['', self::COUNT];
+        yield ['true[]', self::COUNT];
+        yield ['foobar', self::COUNT];
 
         // archived items are excluded
-        yield ['false',  self::COUNT_WITHOUT_ARCHIVED];
-        yield ['0',  self::COUNT_WITHOUT_ARCHIVED];
+        yield ['false', self::COUNT_WITHOUT_ARCHIVED];
+        yield ['0', self::COUNT_WITHOUT_ARCHIVED];
     }
 
     /**
@@ -198,7 +268,7 @@ publicationDate: This value should not be null.',
      */
     public function testArchivedFilterParameter(string $archivedValue, int $count): void
     {
-        $this->client->request('GET', '/books?archived='.$archivedValue);
+        $this->client->request('GET', '/books?archived=' . $archivedValue);
         self::assertResponseIsSuccessful();
         self::assertJsonContains([
             '@id' => '/books',
@@ -209,10 +279,12 @@ publicationDate: This value should not be null.',
 
     private function login(): string
     {
-        $response = static::createClient()->request('POST', '/authentication_token', ['json' => [
-            'email' => 'admin@example.com',
-            'password' => 'admin',
-        ]]);
+        $response = static::createClient()->request('POST', '/authentication_token', [
+            'json' => [
+                'email' => 'admin@example.com',
+                'password' => 'admin',
+            ]
+        ]);
 
         return $response->toArray()['token'];
     }
